@@ -269,7 +269,7 @@ func (c *Controller) syncHandler(key string) error {
 	}
 
 	// add finalizer
-	glob := cachedGlob.DeepCopy
+	glob := cachedGlob.DeepCopy()
 	if !utils.ContainsString(glob.Finalizers, known.AppFinalizer) && glob.DeletionTimestamp == nil {
 		glob.Finalizers = append(glob.Finalizers, known.AppFinalizer)
 		glob, err = c.clusternetClient.AppsV1alpha1().Globalizations().Update(context.TODO(),
