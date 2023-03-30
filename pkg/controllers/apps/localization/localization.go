@@ -258,7 +258,7 @@ func (c *Controller) syncHandler(key string) error {
 
 	klog.V(4).Infof("start processing Localization %q", key)
 	// Get the Localization resource with this name
-	loc, err := c.locLister.Localizations(ns).Get(name)
+	cachedLoc, err := c.locLister.Localizations(ns).Get(name)
 	// The Localization resource may no longer exist, in which case we stop processing.
 	if errors.IsNotFound(err) {
 		klog.V(2).Infof("Localization %q has been deleted", key)
@@ -269,6 +269,7 @@ func (c *Controller) syncHandler(key string) error {
 	}
 
 	// add finalizer
+	loc := cachedLoc.DeepCopy()
 	if !utils.ContainsString(loc.Finalizers, known.AppFinalizer) && loc.DeletionTimestamp == nil {
 		loc.Finalizers = append(loc.Finalizers, known.AppFinalizer)
 		loc, err = c.clusternetClient.AppsV1alpha1().Localizations(loc.Namespace).Update(context.TODO(),
