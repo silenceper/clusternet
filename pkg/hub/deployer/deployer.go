@@ -218,9 +218,7 @@ func NewDeployer(apiserverURL, systemNamespace, reservedNamespace string,
 			return nil, err
 		}
 		deployer.finvController = finv
-
 	}
-
 	return deployer, nil
 }
 
