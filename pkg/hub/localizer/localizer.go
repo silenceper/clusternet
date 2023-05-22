@@ -401,3 +401,27 @@ func (l *Localizer) getOverrides(namespace string, feed appsapi.Feed) ([]appsapi
 
 	return allOverrideConfigs, nil
 }
+
+func (l *Localizer) IsLocalizationForFeedReady(locName, locNamespace string, feed appsapi.Feed) (bool, error) {
+	loc, err := l.locLister.Localizations(locNamespace).Get(locName)
+	if err != nil {
+		if apierrors.IsNotFound(err) {
+			return false, nil
+		}
+		return false, err
+	}
+	klog.V(5).Infof("loc %s/%s is already in localizer", locNamespace, locName)
+	manifests, err := utils.ListManifestsBySelector(l.reservedNamespace, l.manifestLister, feed)
+	if err != nil {
+		return false, err
+	}
+	if manifests == nil {
+		return false, apierrors.NewNotFound(schema.GroupResource{Resource: feed.Kind}, feed.Name)
+	}
+	uid := manifests[0].UID
+	if len(loc.Labels) != 0 && loc.Labels[string(uid)] == feed.Kind {
+		return true, nil
+	}
+	klog.V(5).Infof("loc %s/%s has no mainfests uid %s", locNamespace, locName, uid)
+	return false, nil
+}

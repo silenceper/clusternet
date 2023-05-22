@@ -218,7 +218,9 @@ func NewDeployer(apiserverURL, systemNamespace, reservedNamespace string,
 			return nil, err
 		}
 		deployer.finvController = finv
+
 	}
+
 	return deployer, nil
 }
 
@@ -473,6 +475,75 @@ func (deployer *Deployer) deleteBase(ctx context.Context, namespacedKey string) 
 	return err
 }
 
+func (deployer *Deployer) getSubByBase(base *appsapi.Base) (*appsapi.Subscription, error) {
+	if base == nil {
+		return nil, fmt.Errorf("base cannot be empty")
+	}
+	subName := base.Labels[known.ConfigSubscriptionNameLabel]
+	subNamespace := base.Labels[known.ConfigSubscriptionNamespaceLabel]
+	if len(subName) == 0 {
+		return nil, fmt.Errorf("sub name in base %s/%s labels is empty", base.GetNamespace(), base.GetName())
+	}
+	if len(subNamespace) == 0 {
+		return nil, fmt.Errorf("sub namespace in base %s/%s labels is empty", base.GetNamespace(), base.GetName())
+	}
+	sub, err := deployer.subLister.Subscriptions(subNamespace).Get(subName)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get sub %s/%s", subNamespace, subName)
+	}
+	return sub, nil
+}
+
+func (deployer *Deployer) waitBaseLocalizations(base *appsapi.Base) bool {
+	sub, subErr := deployer.getSubByBase(base)
+	if subErr != nil {
+		klog.Warningf("get sub by base failed, err %s", subErr)
+		return false
+	}
+	if sub.Spec.SchedulingStrategy != appsapi.DividingSchedulingStrategyType {
+		return true
+	}
+	finv, finvErr := deployer.finvLister.FeedInventories(sub.Namespace).Get(sub.Name)
+	if finvErr != nil {
+		klog.WarningDepth(5, fmt.Sprintf("failed to get FeedInventory %s: %v", klog.KObj(sub), finvErr))
+		return false
+	}
+	for _, feedOrder := range finv.Spec.Feeds {
+		// no need to check empty or zero replicas feed
+		if feedOrder.DesiredReplicas == nil || *feedOrder.DesiredReplicas == 0 {
+			continue
+		}
+		feedKey := utils.GetFeedKey(feedOrder.Feed)
+		replicas, ok := sub.Status.Replicas[feedKey]
+		if !ok {
+			klog.Warningf("feed %s has no replicas in sub %s/%s", feedKey, sub.Namespace, sub.Name)
+			return false
+		}
+		if len(replicas) == 0 {
+			continue
+		}
+		suffixName := feedOrder.Feed.Name
+		if len(feedOrder.Feed.Namespace) > 0 {
+			suffixName = fmt.Sprintf("%s.%s", feedOrder.Feed.Namespace, feedOrder.Feed.Name)
+		}
+		locName := fmt.Sprintf("%s-%s-%s", base.Name, strings.ToLower(feedOrder.Feed.Kind), suffixName)
+		locNamespace := base.Namespace
+		isOk, err := deployer.localizer.IsLocalizationForFeedReady(locName, locNamespace, feedOrder.Feed)
+		if err != nil {
+			klog.Warningf("failed to get localization %s/%s for base %s/%s failed, err %s, wait base retry",
+				locNamespace, locName, base.Namespace, base.Name, err.Error())
+			return false
+		}
+		if !isOk {
+			klog.Warningf("localization %s/%s for base %s/%s is not synced to localizer, wait base retry",
+				locNamespace, locName, base.Namespace, base.Name)
+			return false
+		}
+		klog.V(5).Infof("loc %s/%s is already in localizer", locNamespace, locName)
+	}
+	return true
+}
+
 func (deployer *Deployer) populateLocalizations(sub *appsapi.Subscription, base *appsapi.Base, clusterIndex int) error {
 	if len(base.UID) == 0 {
 		return fmt.Errorf("waiting for UID set for Base %s", klog.KObj(base))
@@ -677,6 +748,11 @@ func (deployer *Deployer) handleBase(base *appsapi.Base) error {
 }
 
 func (deployer *Deployer) populateDescriptions(base *appsapi.Base) error {
+	// wait for localization sync to local cache
+	if isOk := deployer.waitBaseLocalizations(base); !isOk {
+		return fmt.Errorf("base %s/%s localizations are not ok, to wait", base.Namespace, base.Name)
+	}
+
 	var allChartRefs []appsapi.ChartReference
 	var allManifests []*appsapi.Manifest
 
@@ -1032,6 +1108,7 @@ func (deployer *Deployer) resyncBase(baseUIDs ...string) error {
 			if len(bases) == 0 {
 				return
 			}
+			klog.Infof("resync base %s/%s", bases[0].Namespace, bases[0].Name)
 			// here the length should always be 1
 			if err := deployer.populateDescriptions(bases[0]); err != nil {
 				errCh <- err
