@@ -1108,7 +1108,6 @@ func (deployer *Deployer) resyncBase(baseUIDs ...string) error {
 			if len(bases) == 0 {
 				return
 			}
-			klog.Infof("resync base %s/%s", bases[0].Namespace, bases[0].Name)
 			// here the length should always be 1
 			if err := deployer.populateDescriptions(bases[0]); err != nil {
 				errCh <- err
