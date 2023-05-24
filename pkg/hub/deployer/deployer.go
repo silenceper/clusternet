@@ -514,8 +514,7 @@ func (deployer *Deployer) waitBaseLocalizations(base *appsapi.Base) bool {
 		feedKey := utils.GetFeedKey(feedOrder.Feed)
 		replicas, ok := sub.Status.Replicas[feedKey]
 		if !ok {
-			klog.Warningf("feed %s has no replicas in sub %s/%s", feedKey, sub.Namespace, sub.Name)
-			return false
+			continue
 		}
 		if len(replicas) == 0 {
 			continue
