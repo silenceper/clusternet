@@ -508,7 +508,8 @@ func (deployer *Deployer) waitBaseLocalizations(base *appsapi.Base) bool {
 	}
 	for _, feedOrder := range finv.Spec.Feeds {
 		// no need to check empty or zero replicas feed
-		if feedOrder.DesiredReplicas == nil || *feedOrder.DesiredReplicas == 0 {
+		// no need to wait localization for desired replicas is 1
+		if feedOrder.DesiredReplicas == nil || *feedOrder.DesiredReplicas == 0 || *feedOrder.DesiredReplicas == 1 {
 			continue
 		}
 		feedKey := utils.GetFeedKey(feedOrder.Feed)
@@ -580,6 +581,10 @@ func (deployer *Deployer) populateLocalizations(sub *appsapi.Subscription, base 
 		}
 
 		if len(feedOrder.ReplicaJsonPath) == 0 {
+			if feedOrder.DesiredReplicas != nil && *feedOrder.DesiredReplicas == 1 {
+				// for pod, no need to create localization
+				continue
+			}
 			msg := fmt.Sprintf("no valid JSONPath is set for %s in FeedInventory %s",
 				utils.FormatFeed(feedOrder.Feed), klog.KObj(finv))
 			klog.ErrorDepth(5, msg)
