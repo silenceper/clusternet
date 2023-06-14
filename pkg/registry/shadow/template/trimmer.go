@@ -18,6 +18,7 @@ package template
 
 import (
 	"fmt"
+	"regexp"
 
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
@@ -65,4 +66,98 @@ func trimBatchJob(result *unstructured.Unstructured) {
 	unstructured.RemoveNestedField(result.Object, "spec", "selector", "matchLabels", "controller-uid")
 	unstructured.RemoveNestedField(result.Object, "spec", "template", "metadata", "creationTimestamp")
 	unstructured.RemoveNestedField(result.Object, "spec", "template", "metadata", "labels", "controller-uid")
+}
+
+var defaultTokenVolumeNameRe = "default-token-[0-9a-z]{5}"
+
+func trimCoreV1Pod(result *unstructured.Unstructured) {
+	isSaAutoMount, found, err := unstructured.NestedBool(result.Object, "spec", "automountServiceAccountToken")
+	if err != nil {
+		return
+	}
+	if !found || (found && isSaAutoMount) {
+		// remove default token volume
+		items, found, err := unstructured.NestedSlice(result.Object, "spec", "volumes")
+		if !found || err != nil {
+			return
+		}
+		foundDefaultTokenVolume := false
+		defaultTokenVolumeName := ""
+		newItems := make([]interface{}, 0)
+		for _, item := range items {
+			volume, ok := item.(map[string]interface{})
+			if !ok {
+				return
+			}
+			vName, vFound, vErr := unstructured.NestedString(volume, "name")
+			if !vFound || vErr != nil {
+				return
+			}
+			isMatched, reErr := regexp.Match(defaultTokenVolumeNameRe, []byte(vName))
+			if reErr != nil {
+				return
+			}
+			if isMatched {
+				foundDefaultTokenVolume = true
+				defaultTokenVolumeName = vName
+				continue
+			}
+			newItems = append(newItems, item)
+		}
+		err = unstructured.SetNestedSlice(result.Object, newItems, "spec", "volumes")
+		if err != nil {
+			klog.ErrorDepth(2, fmt.Sprintf("failed to trim Pod volumes %s/%s: %v", result.GetNamespace(), result.GetName(), err))
+			return
+		}
+
+		if foundDefaultTokenVolume {
+			newContainers := make([]interface{}, 0)
+			// remove default token volume
+			containerItems, found, err := unstructured.NestedSlice(result.Object, "spec", "containers")
+			if !found || err != nil {
+				return
+			}
+			for _, containerItem := range containerItems {
+				container, ok := containerItem.(map[string]interface{})
+				if !ok {
+					return
+				}
+				volumeMountItems, vmFound, vmErr := unstructured.NestedSlice(container, "volumeMounts")
+				if vmErr != nil {
+					return
+				}
+				if !vmFound {
+					continue
+				}
+				newVmItems := make([]interface{}, 0)
+				for _, vmItem := range volumeMountItems {
+					volumeMount, ok := vmItem.(map[string]interface{})
+					if !ok {
+						return
+					}
+					vName, vFound, vErr := unstructured.NestedString(volumeMount, "name")
+					if !vFound || vErr != nil {
+						return
+					}
+					if defaultTokenVolumeName == vName {
+						continue
+					}
+					newVmItems = append(newVmItems, vmItem)
+				}
+				err = unstructured.SetNestedSlice(container, newVmItems, "volumeMounts")
+				if err != nil {
+					klog.ErrorDepth(2, fmt.Sprintf("failed to trim Pod %s/%s volumemMounts: %v", result.GetNamespace(), result.GetName(), err))
+					return
+				}
+				newContainers = append(newContainers, containerItem)
+			}
+			err = unstructured.SetNestedSlice(result.Object, newContainers, "spec", "containers")
+			if err != nil {
+				klog.ErrorDepth(2, fmt.Sprintf("failed to trim Pod %s/%s volumemMounts: %v", result.GetNamespace(), result.GetName(), err))
+				return
+			}
+		}
+	}
+	unstructured.RemoveNestedField(result.Object, "spec", "preemptionPolicy")
+	unstructured.RemoveNestedField(result.Object, "status")
 }

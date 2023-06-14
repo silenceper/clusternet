@@ -264,3 +264,288 @@ func TestTrimBatchJob(t *testing.T) {
 		})
 	}
 }
+
+func TestTrimCoreV1Pod(t *testing.T) {
+	tests := []struct {
+		name          string
+		resultRaw     *unstructured.Unstructured
+		resultDesired *unstructured.Unstructured
+	}{
+		{
+			name: "trim defualt-token-xxxxx secret case 1",
+			resultRaw: &unstructured.Unstructured{
+				Object: map[string]interface{}{
+					"apiVersion": "v1",
+					"kind":       "Pod",
+					"metadata": map[string]interface{}{
+						"creationTimestamp": "2021-11-01T08:12:43Z",
+						"labels": map[string]string{
+							"clusternet.io/created-by": "clusternet-hub",
+						},
+						"name":            "my-test-pod",
+						"namespace":       "nginx-test",
+						"resourceVersion": "4457294",
+						"selfLink":        "test-link",
+						"uid":             "28f5ae38-9eea-431c-918b-68ffdf263c24",
+					},
+					"spec": map[string]interface{}{
+						"containers": []interface{}{
+							map[string]interface{}{
+								"image":                    "mirrors.tencent.com/marstest/nginx:latest",
+								"imagePullPolicy":          "Always",
+								"name":                     "nginx",
+								"terminationMessagePath":   "/dev/termination-log",
+								"terminationMessagePolicy": "File",
+								"volumeMounts": []interface{}{
+									map[string]interface{}{
+										"mountPath": "/var/run/secrets/kubernetes.io/serviceaccount",
+										"name":      "default-token-6smxf",
+										"readOnly":  true,
+									},
+								},
+							},
+						},
+						"volumes": []interface{}{
+							map[string]interface{}{
+								"name": "default-token-6smxf",
+								"secret": map[string]interface{}{
+									"defaultMode": int64(420),
+									"secretName":  "default-token-6smxf",
+								},
+							},
+						},
+					},
+				},
+			},
+			resultDesired: &unstructured.Unstructured{
+				Object: map[string]interface{}{
+					"apiVersion": "v1",
+					"kind":       "Pod",
+					"metadata": map[string]interface{}{
+						"labels": map[string]string{
+							"clusternet.io/created-by": "clusternet-hub",
+						},
+						"name":      "my-test-pod",
+						"namespace": "nginx-test",
+						"uid":       "28f5ae38-9eea-431c-918b-68ffdf263c24",
+					},
+					"spec": map[string]interface{}{
+						"containers": []interface{}{
+							map[string]interface{}{
+								"image":                    "mirrors.tencent.com/marstest/nginx:latest",
+								"imagePullPolicy":          "Always",
+								"name":                     "nginx",
+								"terminationMessagePath":   "/dev/termination-log",
+								"terminationMessagePolicy": "File",
+								"volumeMounts":             []interface{}{},
+							},
+						},
+						"volumes": []interface{}{},
+					},
+				},
+			},
+		},
+		{
+			name: "trim defualt-token-xxxxx secret case 2",
+			resultRaw: &unstructured.Unstructured{
+				Object: map[string]interface{}{
+					"apiVersion": "v1",
+					"kind":       "Pod",
+					"metadata": map[string]interface{}{
+						"creationTimestamp": "2021-11-01T08:12:43Z",
+						"labels": map[string]string{
+							"clusternet.io/created-by": "clusternet-hub",
+						},
+						"name":            "my-test-pod",
+						"namespace":       "nginx-test",
+						"resourceVersion": "4457294",
+						"selfLink":        "test-link",
+						"uid":             "28f5ae38-9eea-431c-918b-68ffdf263c24",
+					},
+					"spec": map[string]interface{}{
+						"automountServiceAccountToken": true,
+						"containers": []interface{}{
+							map[string]interface{}{
+								"image":                    "mirrors.tencent.com/marstest/nginx:latest",
+								"imagePullPolicy":          "Always",
+								"name":                     "nginx",
+								"terminationMessagePath":   "/dev/termination-log",
+								"terminationMessagePolicy": "File",
+								"volumeMounts": []interface{}{
+									map[string]interface{}{
+										"mountPath": "/var/run/secrets/kubernetes.io/serviceaccount",
+										"name":      "default-token-6smxf",
+										"readOnly":  true,
+									},
+									map[string]interface{}{
+										"mountPath": "/data/test",
+										"name":      "test-key",
+										"readOnly":  true,
+									},
+								},
+							},
+						},
+						"volumes": []interface{}{
+							map[string]interface{}{
+								"name": "default-token-6smxf",
+								"secret": map[string]interface{}{
+									"defaultMode": int64(420),
+									"secretName":  "default-token-6smxf",
+								},
+							},
+							map[string]interface{}{
+								"name": "test-key",
+								"secret": map[string]interface{}{
+									"defaultMode": int64(420),
+									"secretName":  "test-secret",
+								},
+							},
+						},
+					},
+				},
+			},
+			resultDesired: &unstructured.Unstructured{
+				Object: map[string]interface{}{
+					"apiVersion": "v1",
+					"kind":       "Pod",
+					"metadata": map[string]interface{}{
+						"labels": map[string]string{
+							"clusternet.io/created-by": "clusternet-hub",
+						},
+						"name":      "my-test-pod",
+						"namespace": "nginx-test",
+						"uid":       "28f5ae38-9eea-431c-918b-68ffdf263c24",
+					},
+					"spec": map[string]interface{}{
+						"automountServiceAccountToken": true,
+						"containers": []interface{}{
+							map[string]interface{}{
+								"image":                    "mirrors.tencent.com/marstest/nginx:latest",
+								"imagePullPolicy":          "Always",
+								"name":                     "nginx",
+								"terminationMessagePath":   "/dev/termination-log",
+								"terminationMessagePolicy": "File",
+								"volumeMounts": []interface{}{
+									map[string]interface{}{
+										"mountPath": "/data/test",
+										"name":      "test-key",
+										"readOnly":  true,
+									},
+								},
+							},
+						},
+						"volumes": []interface{}{
+							map[string]interface{}{
+								"name": "test-key",
+								"secret": map[string]interface{}{
+									"defaultMode": int64(420),
+									"secretName":  "test-secret",
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+		{
+			name: "trim defualt-token-xxxxx secret case 3",
+			resultRaw: &unstructured.Unstructured{
+				Object: map[string]interface{}{
+					"apiVersion": "v1",
+					"kind":       "Pod",
+					"metadata": map[string]interface{}{
+						"creationTimestamp": "2021-11-01T08:12:43Z",
+						"labels": map[string]string{
+							"clusternet.io/created-by": "clusternet-hub",
+						},
+						"name":            "my-test-pod",
+						"namespace":       "nginx-test",
+						"resourceVersion": "4457294",
+						"selfLink":        "test-link",
+						"uid":             "28f5ae38-9eea-431c-918b-68ffdf263c24",
+					},
+					"spec": map[string]interface{}{
+						"automountServiceAccountToken": false,
+						"containers": []interface{}{
+							map[string]interface{}{
+								"image":                    "mirrors.tencent.com/marstest/nginx:latest",
+								"imagePullPolicy":          "Always",
+								"name":                     "nginx",
+								"terminationMessagePath":   "/dev/termination-log",
+								"terminationMessagePolicy": "File",
+								"volumeMounts": []interface{}{
+									map[string]interface{}{
+										"mountPath": "/var/run/secrets/kubernetes.io/serviceaccount",
+										"name":      "default-token-6smxf",
+										"readOnly":  true,
+									},
+								},
+							},
+						},
+						"volumes": []interface{}{
+							map[string]interface{}{
+								"name": "default-token-6smxf",
+								"secret": map[string]interface{}{
+									"defaultMode": int64(420),
+									"secretName":  "default-token-6smxf",
+								},
+							},
+						},
+					},
+				},
+			},
+			resultDesired: &unstructured.Unstructured{
+				Object: map[string]interface{}{
+					"apiVersion": "v1",
+					"kind":       "Pod",
+					"metadata": map[string]interface{}{
+						"labels": map[string]string{
+							"clusternet.io/created-by": "clusternet-hub",
+						},
+						"name":      "my-test-pod",
+						"namespace": "nginx-test",
+						"uid":       "28f5ae38-9eea-431c-918b-68ffdf263c24",
+					},
+					"spec": map[string]interface{}{
+						"automountServiceAccountToken": false,
+						"containers": []interface{}{
+							map[string]interface{}{
+								"image":                    "mirrors.tencent.com/marstest/nginx:latest",
+								"imagePullPolicy":          "Always",
+								"name":                     "nginx",
+								"terminationMessagePath":   "/dev/termination-log",
+								"terminationMessagePolicy": "File",
+								"volumeMounts": []interface{}{
+									map[string]interface{}{
+										"mountPath": "/var/run/secrets/kubernetes.io/serviceaccount",
+										"name":      "default-token-6smxf",
+										"readOnly":  true,
+									},
+								},
+							},
+						},
+						"volumes": []interface{}{
+							map[string]interface{}{
+								"name": "default-token-6smxf",
+								"secret": map[string]interface{}{
+									"defaultMode": int64(420),
+									"secretName":  "default-token-6smxf",
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			trimCommonMetadata(tt.resultRaw)
+			trimCoreV1Pod(tt.resultRaw)
+			if !reflect.DeepEqual(tt.resultRaw, tt.resultDesired) {
+				t.Errorf("got: %v\n, but want: %v\n", tt.resultRaw.UnstructuredContent(), tt.resultDesired.UnstructuredContent())
+			}
+		})
+	}
+}
