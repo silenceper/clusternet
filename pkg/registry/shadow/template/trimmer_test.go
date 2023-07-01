@@ -291,7 +291,7 @@ func TestTrimCoreV1Pod(t *testing.T) {
 					"spec": map[string]interface{}{
 						"containers": []interface{}{
 							map[string]interface{}{
-								"image":                    "mirrors.tencent.com/marstest/nginx:latest",
+								"image":                    "nginx:latest",
 								"imagePullPolicy":          "Always",
 								"name":                     "nginx",
 								"terminationMessagePath":   "/dev/termination-log",
@@ -332,7 +332,7 @@ func TestTrimCoreV1Pod(t *testing.T) {
 					"spec": map[string]interface{}{
 						"containers": []interface{}{
 							map[string]interface{}{
-								"image":                    "mirrors.tencent.com/marstest/nginx:latest",
+								"image":                    "nginx:latest",
 								"imagePullPolicy":          "Always",
 								"name":                     "nginx",
 								"terminationMessagePath":   "/dev/termination-log",
@@ -366,7 +366,7 @@ func TestTrimCoreV1Pod(t *testing.T) {
 						"automountServiceAccountToken": true,
 						"containers": []interface{}{
 							map[string]interface{}{
-								"image":                    "mirrors.tencent.com/marstest/nginx:latest",
+								"image":                    "nginx:latest",
 								"imagePullPolicy":          "Always",
 								"name":                     "nginx",
 								"terminationMessagePath":   "/dev/termination-log",
@@ -420,7 +420,7 @@ func TestTrimCoreV1Pod(t *testing.T) {
 						"automountServiceAccountToken": true,
 						"containers": []interface{}{
 							map[string]interface{}{
-								"image":                    "mirrors.tencent.com/marstest/nginx:latest",
+								"image":                    "nginx:latest",
 								"imagePullPolicy":          "Always",
 								"name":                     "nginx",
 								"terminationMessagePath":   "/dev/termination-log",
@@ -468,7 +468,7 @@ func TestTrimCoreV1Pod(t *testing.T) {
 						"automountServiceAccountToken": false,
 						"containers": []interface{}{
 							map[string]interface{}{
-								"image":                    "mirrors.tencent.com/marstest/nginx:latest",
+								"image":                    "nginx:latest",
 								"imagePullPolicy":          "Always",
 								"name":                     "nginx",
 								"terminationMessagePath":   "/dev/termination-log",
@@ -510,7 +510,7 @@ func TestTrimCoreV1Pod(t *testing.T) {
 						"automountServiceAccountToken": false,
 						"containers": []interface{}{
 							map[string]interface{}{
-								"image":                    "mirrors.tencent.com/marstest/nginx:latest",
+								"image":                    "nginx:latest",
 								"imagePullPolicy":          "Always",
 								"name":                     "nginx",
 								"terminationMessagePath":   "/dev/termination-log",

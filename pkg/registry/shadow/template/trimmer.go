@@ -70,11 +70,15 @@ func trimBatchJob(result *unstructured.Unstructured) {
 
 var defaultTokenVolumeNameRe = "default-token-[0-9a-z]{5}"
 
+// 功能1: 去除自动挂载的service account token，因为默认clusternet会注入clusternet-reserved这个namespace下的service account token
+// 功能2: 去除preemptionPolicy，这个字段1.18为alpha，需要开启特性开关才生效；1.20进入beta阶段，默认有值，当host集群版本较高时，与低版本集群不兼容，内部需要特别去掉
+// 功能3: 去除status字段
 func trimCoreV1Pod(result *unstructured.Unstructured) {
 	isSaAutoMount, found, err := unstructured.NestedBool(result.Object, "spec", "automountServiceAccountToken")
 	if err != nil {
 		return
 	}
+	// 情况1: 如果没有找到automountServiceAccountToken，默认为true，则需要去掉自动挂载的token
 	if !found || (found && isSaAutoMount) {
 		// remove default token volume
 		items, found, err := unstructured.NestedSlice(result.Object, "spec", "volumes")
