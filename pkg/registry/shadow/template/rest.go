@@ -610,6 +610,8 @@ func (r *REST) trimResult(result *unstructured.Unstructured) {
 		trimBatchJob(result)
 	case schema.GroupKind{Kind: "Service", Group: corev1.GroupName}:
 		trimCoreService(result)
+	case schema.GroupKind{Kind: "Pod", Group: corev1.GroupName}:
+		trimCoreV1Pod(result)
 	}
 }
 

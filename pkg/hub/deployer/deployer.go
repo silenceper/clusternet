@@ -508,7 +508,8 @@ func (deployer *Deployer) waitBaseLocalizations(base *appsapi.Base) bool {
 	}
 	for _, feedOrder := range finv.Spec.Feeds {
 		// no need to check empty or zero replicas feed
-		if feedOrder.DesiredReplicas == nil || *feedOrder.DesiredReplicas == 0 {
+		// no need to wait localization for desired replicas is 1
+		if feedOrder.DesiredReplicas == nil || *feedOrder.DesiredReplicas == 0 || *feedOrder.DesiredReplicas == 1 {
 			continue
 		}
 		feedKey := utils.GetFeedKey(feedOrder.Feed)
@@ -580,6 +581,10 @@ func (deployer *Deployer) populateLocalizations(sub *appsapi.Subscription, base 
 		}
 
 		if len(feedOrder.ReplicaJsonPath) == 0 {
+			if feedOrder.DesiredReplicas != nil && *feedOrder.DesiredReplicas == 1 {
+				// for pod, no need to create localization
+				continue
+			}
 			msg := fmt.Sprintf("no valid JSONPath is set for %s in FeedInventory %s",
 				utils.FormatFeed(feedOrder.Feed), klog.KObj(finv))
 			klog.ErrorDepth(5, msg)
@@ -924,10 +929,13 @@ func (deployer *Deployer) syncDescriptions(base *appsapi.Base, desc *appsapi.Des
 			// Here we only need to focus on generic deployer.
 			pruneCtx, cancel := context.WithCancel(context.TODO())
 			go wait.JitterUntilWithContext(pruneCtx, func(ctx context.Context) {
-				if err := deployer.genericDeployer.PruneFeedsInDescription(ctx, curDesc.DeepCopy(), desc.DeepCopy()); err == nil {
+				err := deployer.genericDeployer.PruneFeedsInDescription(ctx, curDesc.DeepCopy(), desc.DeepCopy())
+				if err == nil {
 					cancel()
 					return
 				}
+				klog.Warningf("prune feed for desc %s/%s failed, err %s",
+					curDesc.GetNamespace(), curDesc.GetName(), err.Error())
 			}, known.DefaultRetryPeriod, 0.3, true)
 
 			curDescCopy := curDesc.DeepCopy()
