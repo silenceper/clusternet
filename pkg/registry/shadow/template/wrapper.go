@@ -20,8 +20,12 @@ import (
 	"context"
 	"sync"
 
+	"k8s.io/apimachinery/pkg/api/meta"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/watch"
+	"k8s.io/klog/v2"
 )
 
 const (
@@ -37,6 +41,8 @@ type WatchWrapper struct {
 	fixup FixupFunc
 
 	ctx context.Context
+
+	targetGVK schema.GroupVersionKind
 
 	result chan watch.Event
 	sync.Mutex
@@ -72,23 +78,50 @@ func (w *WatchWrapper) Run() {
 
 			if w.fixup == nil {
 				w.result <- event
-			} else {
-				obj := w.fixup(event.Object)
-				w.result <- watch.Event{
-					Type:   event.Type,
-					Object: obj,
-				}
+				continue
+			}
+
+			obj := event.Object
+			switch event.Type {
+			case watch.Bookmark:
+				obj = w.transformBookMarkEvent(obj)
+			case watch.Error:
+				klog.Warningf("got a watch error: %v", event)
+			default:
+				obj = w.fixup(event.Object)
+
+			}
+			w.result <- watch.Event{
+				Type:   event.Type,
+				Object: obj,
 			}
 		}
 	}
 }
 
-func NewWatchWrapper(ctx context.Context, watcher watch.Interface, fixup FixupFunc, size int) *WatchWrapper {
+func (w *WatchWrapper) transformBookMarkEvent(object runtime.Object) runtime.Object {
+	result := &unstructured.Unstructured{}
+	objMeta, err := meta.Accessor(object)
+	if err != nil {
+		klog.Errorf("got a transform error: %v", err)
+		return object
+	}
+	result.SetResourceVersion(objMeta.GetResourceVersion())
+	result.SetGroupVersionKind(w.targetGVK)
+	result.SetAnnotations(map[string]string{
+		"k8s.io/initial-events-end": "true",
+	})
+
+	return result
+}
+
+func NewWatchWrapper(ctx context.Context, watcher watch.Interface, fixup FixupFunc, targetGVK schema.GroupVersionKind, size int) *WatchWrapper {
 	return &WatchWrapper{
-		ctx:     ctx,
-		watcher: watcher,
-		fixup:   fixup,
-		result:  make(chan watch.Event, size),
+		ctx:       ctx,
+		watcher:   watcher,
+		fixup:     fixup,
+		targetGVK: targetGVK,
+		result:    make(chan watch.Event, size),
 	}
 }
 
