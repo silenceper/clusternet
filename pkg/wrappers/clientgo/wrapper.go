@@ -31,7 +31,10 @@ var (
 	// regex matches '/api/v1/{path}'
 	apiv1Regex = regexp.MustCompile(`^(/api/v1)/(.*)`)
 	// regex matches "/apis/{group}/{version}/{path}"
-	apisRegex = regexp.MustCompile(`^(/apis/.*/v\w*.)/(.*)`)
+	// Use [^/]+ instead of .* to prevent greedy matching across path segments,
+	// which caused cluster-scoped resources starting with 'v' (e.g. validatingwebhookconfigurations)
+	// to be incorrectly consumed as part of the version segment.
+	apisRegex = regexp.MustCompile(`^(/apis/[^/]+/v\w+)(/.*)`)
 	// regex matches "/apis/xxx.clusternet.io/{version}/{path}"
 	clusternetAPIsRegex = regexp.MustCompile(`^(/apis/\w*\.clusternet\.io/v\w*.)/(.*)`)
 
