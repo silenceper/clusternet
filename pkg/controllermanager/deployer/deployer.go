@@ -1021,7 +1021,8 @@ func (deployer *Deployer) handleManifest(manifestCopy *appsapi.Manifest) error {
 
 func (deployer *Deployer) handleHelmChart(chartCopy *appsapi.HelmChart) error {
 	var err error
-	klog.V(5).Infof("handle HelmChart %s", klog.KObj(chartCopy))
+	klog.V(4).Infof("handle HelmChart %s for repository=%q chart=%q version=%q",
+		klog.KObj(chartCopy), chartCopy.Spec.Repository, chartCopy.Spec.Chart, chartCopy.Spec.ChartVersion)
 	if chartCopy.DeletionTimestamp != nil {
 		if err = deployer.protectHelmChartFeed(chartCopy); err != nil {
 			return err
@@ -1055,13 +1056,19 @@ func (deployer *Deployer) handleHelmChart(chartCopy *appsapi.HelmChart) error {
 			chartCopy.Spec.ChartPullSecret.Namespace,
 		)
 		if err != nil {
+			klog.Warningf("failed to get chart pull secret for HelmChart %s: %v", klog.KObj(chartCopy), err)
 			return err
 		}
 	}
 	chartPhase = appsapi.HelmChartFound
 	if registry.IsOCI(chartCopy.Spec.Repository) {
 		var found bool
-		found, err = utils.FindOCIChart(chartCopy.Spec.Repository, chartCopy.Spec.Chart, chartCopy.Spec.ChartVersion)
+		found, err = utils.FindOCIChart(
+			chartCopy.Spec.Repository,
+			chartCopy.Spec.Chart,
+			chartCopy.Spec.ChartVersion,
+			chartCopy.Spec.PlainHTTP != nil && *chartCopy.Spec.PlainHTTP,
+		)
 		if !found {
 			chartPhase = appsapi.HelmChartNotFound
 			reason = fmt.Sprintf("not found a version matched %s for chart %s/%s",
@@ -1083,12 +1090,15 @@ func (deployer *Deployer) handleHelmChart(chartCopy *appsapi.HelmChart) error {
 		chartPhase = appsapi.HelmChartNotFound
 		reason = err.Error()
 	}
+	klog.V(4).Infof("HelmChart %s verification result: phase=%q reason=%q",
+		klog.KObj(chartCopy), chartPhase, reason)
 
 	err = deployer.chartController.UpdateChartStatus(chartCopy, &appsapi.HelmChartStatus{
 		Phase:  chartPhase,
 		Reason: reason,
 	})
 	if err != nil {
+		klog.Warningf("failed to persist status for HelmChart %s: %v", klog.KObj(chartCopy), err)
 		return err
 	}
 

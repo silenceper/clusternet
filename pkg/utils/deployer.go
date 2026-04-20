@@ -171,7 +171,15 @@ func ReconcileHelmRelease(ctx context.Context, deployCtx *DeployContext, kubeCli
 			return err
 		}
 	}
-	chart, err = LocateAuthHelmChart(cfg, hr.Spec.Repository, username, password, hr.Spec.Chart, hr.Spec.ChartVersion)
+	chart, err = LocateAuthHelmChart(
+		cfg,
+		hr.Spec.Repository,
+		username,
+		password,
+		hr.Spec.Chart,
+		hr.Spec.ChartVersion,
+		hr.Spec.PlainHTTP != nil && *hr.Spec.PlainHTTP,
+	)
 	if err != nil {
 		recorder.Event(hr, corev1.EventTypeWarning, "ChartLocateFailure", err.Error())
 		hrStatus = &appsapi.HelmReleaseStatus{
