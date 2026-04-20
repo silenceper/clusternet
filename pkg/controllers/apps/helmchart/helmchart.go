@@ -46,25 +46,6 @@ var controllerKind = appsapi.SchemeGroupVersion.WithKind("HelmChart")
 
 type SyncHandlerFunc func(chart *appsapi.HelmChart) error
 
-func shouldEnqueueHelmChart(oldChart, newChart *appsapi.HelmChart) bool {
-	if newChart.DeletionTimestamp != nil {
-		return true
-	}
-
-	if !reflect.DeepEqual(oldChart.Spec, newChart.Spec) {
-		return true
-	}
-
-	// Keep reconciling metadata-only updates until verification writes status.phase.
-	if len(newChart.Status.Phase) == 0 {
-		klog.V(4).Infof("HelmChart %s status is empty, enqueueing for verification", klog.KObj(newChart))
-		return true
-	}
-
-	klog.V(4).Infof("no updates on the spec of HelmChart %s, skipping syncing", klog.KObj(oldChart))
-	return false
-}
-
 // Controller is a controller that handles HelmChart
 type Controller struct {
 	yachtController *yacht.Controller
@@ -107,7 +88,16 @@ func NewController(
 			if oldObj != nil && newObj != nil {
 				oldChart := oldObj.(*appsapi.HelmChart)
 				newChart := newObj.(*appsapi.HelmChart)
-				return shouldEnqueueHelmChart(oldChart, newChart), nil
+
+				if newChart.DeletionTimestamp != nil {
+					return true, nil
+				}
+
+				// Decide whether discovery has reported a spec change.
+				if reflect.DeepEqual(oldChart.Spec, newChart.Spec) {
+					klog.V(4).Infof("no updates on the spec of HelmChart %s, skipping syncing", klog.KObj(oldChart))
+					return false, nil
+				}
 			}
 
 			// ADD/DELETE/OTHER UPDATE
@@ -190,8 +180,6 @@ func (c *Controller) handle(obj interface{}) (requeueAfter *time.Duration, err e
 	}
 
 	chart := cachedChart.DeepCopy()
-	klog.V(4).Infof("reconciling HelmChart %s with generation %d and resourceVersion %q",
-		klog.KObj(chart), chart.Generation, chart.ResourceVersion)
 	if chart.DeletionTimestamp == nil {
 		// add finalizer
 		if !utils.ContainsString(chart.Finalizers, known.AppFinalizer) {
@@ -241,29 +229,21 @@ func (c *Controller) handle(obj interface{}) (requeueAfter *time.Duration, err e
 	return nil, err
 }
 func (c *Controller) UpdateChartStatus(chartCopy *appsapi.HelmChart, status *appsapi.HelmChartStatus) error {
-	klog.V(4).Infof("updating HelmChart %s status to phase=%q reason=%q (resourceVersion=%q)",
-		klog.KObj(chartCopy), status.Phase, status.Reason, chartCopy.ResourceVersion)
+	klog.V(5).Infof("try to update HelmChart %q status", chartCopy.Name)
 
 	return retry.RetryOnConflict(retry.DefaultRetry, func() error {
 		chartCopy.Status = *status
 		_, err := c.clusternetClient.AppsV1alpha1().HelmCharts(chartCopy.Namespace).UpdateStatus(context.TODO(), chartCopy, metav1.UpdateOptions{})
 		if err == nil {
-			klog.V(4).Infof("updated HelmChart %s status to phase=%q", klog.KObj(chartCopy), status.Phase)
+			// TODO
 			return nil
-		}
-		if !errors.IsConflict(err) {
-			klog.Warningf("failed to update HelmChart %s status to phase=%q: %v",
-				klog.KObj(chartCopy), status.Phase, err)
-			return err
 		}
 
 		updated, err2 := c.helmChartLister.HelmCharts(chartCopy.Namespace).Get(chartCopy.Name)
 		if err2 == nil {
 			// make a copy, so we don't mutate the shared cache
 			chartCopy = updated.DeepCopy()
-			klog.V(4).Infof("conflict updating HelmChart %s status, retrying with resourceVersion %q",
-				klog.KObj(chartCopy), chartCopy.ResourceVersion)
-			return err
+			return nil
 		}
 		utilruntime.HandleError(fmt.Errorf("error getting updated HelmChart %q from lister: %v", chartCopy.Name, err2))
 		return err2
