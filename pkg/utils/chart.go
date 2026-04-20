@@ -61,8 +61,21 @@ var (
 	Settings = cli.New()
 )
 
+const ociRegistryRequestTimeout = 15 * time.Second
+
 type ociRegistryClient interface {
 	Tags(ref string) ([]string, error)
+}
+
+func newOCIHTTPClient() *http.Client {
+	return &http.Client{
+		Timeout: ociRegistryRequestTimeout,
+		Transport: &http.Transport{
+			TLSClientConfig: &tls.Config{
+				InsecureSkipVerify: true,
+			},
+		},
+	}
 }
 
 var newOCIRegistryClient = func(plainHTTP bool) (ociRegistryClient, error) {
@@ -70,13 +83,7 @@ var newOCIRegistryClient = func(plainHTTP bool) (ociRegistryClient, error) {
 		registry.ClientOptDebug(Settings.Debug),
 		registry.ClientOptWriter(os.Stdout),
 		registry.ClientOptCredentialsFile(Settings.RegistryConfig),
-		registry.ClientOptHTTPClient(&http.Client{
-			Transport: &http.Transport{
-				TLSClientConfig: &tls.Config{
-					InsecureSkipVerify: true,
-				},
-			},
-		}),
+		registry.ClientOptHTTPClient(newOCIHTTPClient()),
 	}
 	if plainHTTP {
 		opts = append(opts, registry.ClientOptPlainHTTP())
@@ -94,6 +101,7 @@ func FindOCIChart(chartRepo, chartName, chartVersion string, plainHTTP bool) (bo
 
 	// Retrieve list of tags for repository
 	ref := fmt.Sprintf("%s/%s", strings.TrimPrefix(chartRepo, fmt.Sprintf("%s://", registry.OCIScheme)), chartName)
+	klog.V(4).Infof("querying OCI tags for ref=%q plainHTTP=%t timeout=%s", ref, plainHTTP, ociRegistryRequestTimeout)
 	tags, err := registryClient.Tags(ref)
 	if err != nil {
 		return false, err

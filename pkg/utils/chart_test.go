@@ -2,6 +2,7 @@ package utils
 
 import (
 	"testing"
+	"time"
 
 	"helm.sh/helm/v3/pkg/action"
 )
@@ -42,6 +43,14 @@ func TestFindOCIChartUsesPlainHTTPAndBuildsOCIRef(t *testing.T) {
 	}
 	if fakeClient.gotRef != "10.0.208.12:5000/test/nginx" {
 		t.Fatalf("FindOCIChart queried ref %q, want %q", fakeClient.gotRef, "10.0.208.12:5000/test/nginx")
+	}
+}
+
+func TestNewOCIHTTPClientUsesRegistryTimeout(t *testing.T) {
+	client := newOCIHTTPClient()
+
+	if client.Timeout != 15*time.Second {
+		t.Fatalf("HTTP client timeout = %s, want %s", client.Timeout, 15*time.Second)
 	}
 }
 
